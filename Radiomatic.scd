@@ -30,15 +30,16 @@
 
 
 // boot sequence
-
+// prepare control and audio busses
 ~mixerbusses = ~makebusses.value(~numplayers);
 s.options.numOutputBusChannels = s.options.numOutputBusChannels
-+ ~mixerbusses[~mixerbusses.size-1].index  // last bus index
++ ~mixerbusses[~mixerbusses.size-1].index  // last  mixer bus index
 + 1; // extra one for ~sync bus
 
 s.waitForBoot({
+	// Clock
 	SynthDef(\sync, { arg dur=4; Out.kr(~syncbus, Impulse.kr(1/dur)); }).add;
-
+	// Buffer player
 	SynthDef(\bpbufrd, {
 		arg buf, rate=1.0, start=0.0, dur=1.0, t_reset=0, phase=0.0, amp=1, out=0, syncbus=2;
 		var sig, pos, end, resetpos, sync;
@@ -59,7 +60,7 @@ s.waitForBoot({
 		sig = Mix.ar(sig) * amp;
 		Out.ar(out, Mix.ar(sig));
 	}).add;
-
+	// Audio mixer
 	SynthDef(\mixer, {
 		arg in0, in1, in2, in3,
 		amp0=1, amp1=1, amp2=1, amp3=1,
@@ -70,12 +71,14 @@ s.waitForBoot({
 		amps = [amp0, amp1, amp2, amp3];
 		Out.ar(out, Splay.ar(ins * amps * amp, 0.25));
 	}).add;
-
+	// load buffers
 	~bufs = ~loadbufs.value(~samplespath);
 
 	s.sync;
+	// setup clock
 	~mixer = Synth(\mixer);
 	s.sync;
+	// setup players
 	~players = Array.fill(~numplayers, {
 		arg i;
 		var defaultbuf, outbus;
@@ -89,20 +92,22 @@ s.waitForBoot({
 	});
 
 	~players.size.postln;
+	// patch players outputs to mixer inputs
 	~numplayers.do { arg i; ~mixer.set(\in++(i.asSymbol), ~mixerbusses[i]); };
 
 	s.plotTree;
 	s.meter;
 });
 
-~playplayer = {arg player, value=1; ~playeramp.value(player, value); value.postln};
+// Functions to control samples
+~playplayer = {arg player, value=1; ~playeramp.value(player, value); player.postln};
 ~stopplayer = {arg player; ~playplayer.value(player, 0);};
 ~resetplayer = {arg player; ~players[player].set(\t_reset, 1); player.postln};
 ~playerbuf = {arg player, buf; ~players[player].set(\buf, buf);};
 ~playerdur = {arg player, value;
 	if (value > 0.99) {value = 1} {value};
 	~players[player].set(\dur, value);
-	~players[player].get(\dur, {arg v; v.postln});
+	// ~players[player].get(\dur, {arg v; v.postln});
 };
 ~playerrate = {arg player, value; ~players[player].set(\rate, value); };
 ~playerphase = {arg player, value; ~players[player].set(\phase, value);};
@@ -123,33 +128,31 @@ Tdef(\t).play
 Tdef(\t, {
 	inf.do {
 		var seconds, numchanges;
-		seconds = ((2..4).choose*4); // seconds until next change
+		seconds = (Array.geom(6, 1, 2).choose); // seconds until next change
 		~players.do {
 			arg player, i;
 			var buf, dur, start, phase, rate, amp, change;
-			change = (i+1/8).coin;
-			buf = ~bufs.choose;
-			dur = rrand(0.1,1);
-			start = rrand(0.1,1);
-			phase = rrand(0.1,1);
-			rate = rrand(0.1,1.0) * [-1,1].choose;
-			amp = rrand(0.1,1.0);
+			change = ((i+2)/(~players.size*2)).coin;
 			if (change) {
-				player.set(\buf, buf);
-				player.set(\dur, dur);
-				player.set(\start, start);
-				player.set(\phase, phase);
-				player.set(\rate, rate);
+				buf = ~bufs.choose;
+				dur = rrand(0.1,1);
+				start = rrand(0.1,1);
+				phase = rrand(0.1,1);
+				rate = rrand(0.1,1.0) * [-1,1].choose;
+				amp = rrand(0.25,1.0);
+				~playerbuf.value(i, buf);
+				~playerdur.value(i, dur);
+				~playerstartpos.value(i, start);
+				~playerphase.value(i, phase);
+				~playerrate.value(i, rate);
 				~playeramp.value(i, amp);
 				[i, change, PathName(buf.path).fileNameWithoutExtension, dur.asStringPrec(2), start.asStringPrec(2), phase.asStringPrec(2), rate.asStringPrec(2), amp.asStringPrec(2)].postln;
 			} {
 				[i, change].postln;
 			};
-			// [i, change, PathName(buf.path).fileNameWithoutExtension, dur.asStringPrec(2), start.asStringPrec(2), phase.asStringPrec(2), rate.asStringPrec(2), amp.asStringPrec(2)].postln;
 		};
 		seconds.postln;
 		seconds.wait;
 	};
 });
 )
-0.5.coin
