@@ -93,8 +93,6 @@ s.waitForBoot({
 
 	s.plotTree;
 	s.meter;
-
-	// "samplematic-gui.scd".loadRelative; /// FIX: Interfears with synth set.() commands (???)
 });
 
 ~playplayer = {arg player, value=1; ~playeramp.value(player, value); value.postln};
@@ -124,24 +122,34 @@ Tdef(\t).play
 (
 Tdef(\t, {
 	inf.do {
-		var seconds = ((2..6).choose*4);
+		var seconds, numchanges;
+		seconds = ((2..4).choose*4); // seconds until next change
 		~players.do {
-			arg player;
-			var buf, dur, start, phase, rate;
+			arg player, i;
+			var buf, dur, start, phase, rate, amp, change;
+			change = (i+1/8).coin;
 			buf = ~bufs.choose;
 			dur = rrand(0.1,1);
 			start = rrand(0.1,1);
 			phase = rrand(0.1,1);
 			rate = rrand(0.1,1.0) * [-1,1].choose;
-			player.set(\buf, buf);
-			player.set(\dur, dur);
-			player.set(\start, start);
-			player.set(\phase, phase);
-			player.set(\rate, rate);
-			[PathName(buf.path).fileNameWithoutExtension, dur.asStringPrec(2), start.asStringPrec(2), phase.asStringPrec(2), rate.asStringPrec(2)].postln;
+			amp = rrand(0.1,1.0);
+			if (change) {
+				player.set(\buf, buf);
+				player.set(\dur, dur);
+				player.set(\start, start);
+				player.set(\phase, phase);
+				player.set(\rate, rate);
+				~playeramp.value(i, amp);
+				[i, change, PathName(buf.path).fileNameWithoutExtension, dur.asStringPrec(2), start.asStringPrec(2), phase.asStringPrec(2), rate.asStringPrec(2), amp.asStringPrec(2)].postln;
+			} {
+				[i, change].postln;
+			};
+			// [i, change, PathName(buf.path).fileNameWithoutExtension, dur.asStringPrec(2), start.asStringPrec(2), phase.asStringPrec(2), rate.asStringPrec(2), amp.asStringPrec(2)].postln;
 		};
 		seconds.postln;
 		seconds.wait;
 	};
 });
 )
+0.5.coin
